@@ -13,8 +13,8 @@ export interface PlayerPowerUps {
 }
 
 export class Player extends Entity {
-  private speed: number = 200;
-  private shootCooldown: number = 0;
+  private speed: number = 500;
+  private shootCooldown: number = 1;
   private maxShootCooldown: number = 0.1;
   private thrustParticles: Vector2[] = [];
   public powerUps: PlayerPowerUps;
@@ -109,7 +109,7 @@ export class Player extends Entity {
 
   move(direction: Vector2): void {
     const force = direction.multiply(this.speed);
-    this.velocity = this.velocity.add(force.multiply(0.016)); // Approximate deltaTime
+    this.velocity = this.velocity.add(force.multiply(0.025)); // Approximate deltaTime
     
     // Add thrust particles
     if (direction.magnitude() > 0.1) {
