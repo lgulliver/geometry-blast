@@ -1,4 +1,5 @@
 import { Vector2 } from '../utils/Vector2'
+import { MobileControls } from './MobileControls'
 
 export interface InputState {
   movement: Vector2;
@@ -14,13 +15,20 @@ export class InputManager {
   private currentTouch: Vector2 = Vector2.zero();
   private isTouching: boolean = false;
   private canvas: HTMLCanvasElement;
+  private mobileControls: MobileControls;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
+    this.mobileControls = new MobileControls(canvas);
     this.setupEventListeners();
   }
 
   private setupEventListeners(): void {
+    // Only setup legacy touch/mouse events if not on mobile
+    if (!this.mobileControls.isMobileDevice()) {
+      this.setupDesktopEvents();
+    }
+
     // Keyboard events
     window.addEventListener('keydown', (e) => {
       this.keys.add(e.code);
@@ -32,7 +40,20 @@ export class InputManager {
       e.preventDefault();
     });
 
-    // Touch events
+    // Gamepad connection
+    window.addEventListener('gamepadconnected', (e) => {
+      this.gamepadIndex = e.gamepad.index;
+      console.log('Gamepad connected:', e.gamepad.id);
+    });
+
+    window.addEventListener('gamepaddisconnected', () => {
+      this.gamepadIndex = -1;
+      console.log('Gamepad disconnected');
+    });
+  }
+
+  private setupDesktopEvents(): void {
+    // Touch events for desktop testing
     this.canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
       const touch = e.touches[0];
@@ -89,17 +110,6 @@ export class InputManager {
       isMouseDown = false;
       this.isTouching = false;
     });
-
-    // Gamepad connection
-    window.addEventListener('gamepadconnected', (e) => {
-      this.gamepadIndex = e.gamepad.index;
-      console.log('Gamepad connected:', e.gamepad.id);
-    });
-
-    window.addEventListener('gamepaddisconnected', () => {
-      this.gamepadIndex = -1;
-      console.log('Gamepad disconnected');
-    });
   }
 
   getInputState(): InputState {
@@ -108,7 +118,31 @@ export class InputManager {
     let isMoving = false;
     let isShooting = false;
 
-    // Keyboard input
+    // Mobile controls have priority
+    if (this.mobileControls.isMobileDevice()) {
+      const mobileMovement = this.mobileControls.getMoveDirection();
+      const mobileShooting = this.mobileControls.isShootPressed();
+      
+      if (mobileMovement.magnitude() > 0.1) {
+        movement.x = mobileMovement.x;
+        movement.y = mobileMovement.y;
+        isMoving = true;
+      }
+      
+      if (mobileShooting) {
+        if (isMoving) {
+          // Shoot in movement direction
+          shooting.x = movement.x;
+          shooting.y = movement.y;
+        } else {
+          // Default shoot direction
+          shooting.y = -1;
+        }
+        isShooting = true;
+      }
+    }
+
+    // Keyboard input (always available as fallback)
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) {
       movement.y -= 1;
       isMoving = true;
@@ -175,8 +209,8 @@ export class InputManager {
       }
     }
 
-    // Touch input
-    if (this.isTouching) {
+    // Desktop touch/mouse input (only if not mobile)
+    if (!this.mobileControls.isMobileDevice() && this.isTouching) {
       const centerX = this.canvas.width / 2;
       const centerY = this.canvas.height / 2;
       
@@ -217,5 +251,17 @@ export class InputManager {
       isMoving,
       isShooting
     };
+  }
+
+  getMobileControls(): MobileControls {
+    return this.mobileControls;
+  }
+
+  isPausePressed(): boolean {
+    return this.mobileControls.isPausePressed();
+  }
+
+  updateLayout(): void {
+    this.mobileControls.updateLayout();
   }
 }

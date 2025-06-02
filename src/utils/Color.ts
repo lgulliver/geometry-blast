@@ -29,7 +29,7 @@ export class Color {
   static yellow(): Color {
     return new Color(255, 255, 0, 1);
   }
-
+  
   static orange(): Color {
     return new Color(255, 165, 0, 1);
   }
@@ -40,6 +40,10 @@ export class Color {
 
   static cyan(): Color {
     return new Color(0, 255, 255, 1);
+  }
+  
+  static gray(): Color {
+    return new Color(128, 128, 128, 1);
   }
 
   toString(): string {

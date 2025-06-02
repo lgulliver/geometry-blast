@@ -13,9 +13,9 @@ export interface PlayerPowerUps {
 }
 
 export class Player extends Entity {
-  private speed: number = 500;
+  private speed: number = 400;  // Reduced slightly for better control on portrait mode
   private shootCooldown: number = 1;
-  private maxShootCooldown: number = 0.1;
+  private maxShootCooldown: number = 0.25;
   private thrustParticles: Vector2[] = [];
   public powerUps: PlayerPowerUps;
 

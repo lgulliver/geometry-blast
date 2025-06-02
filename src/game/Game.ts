@@ -47,54 +47,163 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
+    
+    // Special handling for iOS Safari
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    if (isIOS) {
+      console.log('iOS device detected, applying special setup');
+      // Force a delay to ensure proper setup
+      setTimeout(() => this.setupCanvas(), 300);
+    }
+    
+    // Initialize canvas sizing and mobile handling FIRST
+    this.setupCanvas();
+    this.setupMobileOptimizations();
+    
+    // Now create input manager with proper canvas size
     this.inputManager = new InputManager(canvas);
     this.particleSystem = new ParticleSystem();
     this.audioManager = new AudioManager();
     
-    // Initialize player
-    this.player = new Player(0, 0); // Will be positioned properly in initializeGame
-
-    this.setupCanvas();
-    this.setupUI();
-    this.initializeGame();
-    this.setupAudioResumeHandler();
-  }
-
-  private setupCanvas(): void {
-    this.canvas.width = Math.min(window.innerWidth - 20, 1200);
-    this.canvas.height = Math.min(window.innerHeight - 20, 800);
-    
-    // Handle window resize
-    window.addEventListener('resize', () => {
-      this.canvas.width = Math.min(window.innerWidth - 20, 1200);
-      this.canvas.height = Math.min(window.innerHeight - 20, 800);
+    // Listen for pause events from mobile controls
+    document.addEventListener('gamePauseToggle', (e: CustomEvent) => {
+      if (e.detail?.paused) {
+        this.pauseGame();
+      } else {
+        this.resumeGame();
+      }
     });
-  }
-
-  private setupUI(): void {
+    
+    // Listen for pause events from mobile controls
+    document.addEventListener('gamePauseToggle', (e: CustomEvent) => {
+      if (e.detail?.paused) {
+        this.pauseGame();
+      } else {
+        this.resumeGame();
+      }
+    });
+    
+    // Initialize game entities
+    console.log('Creating player at center:', { x: canvas.width / 2, y: canvas.height / 2 });
+    this.player = new Player(canvas.width / 2, canvas.height / 2);
+    
+    // Get UI elements
     this.scoreElement = document.getElementById('score')!;
     this.livesElement = document.getElementById('lives')!;
     this.gameOverElement = document.getElementById('gameOver')!;
     this.finalScoreElement = document.getElementById('finalScore')!;
     this.restartButton = document.getElementById('restartBtn')!;
+    
+    this.restartButton.addEventListener('click', () => this.restartGame());
+    
+    // Setup resize handler
+    window.addEventListener('resize', () => this.handleResize());
+  }
 
-    this.restartButton.addEventListener('click', () => {
-      this.restartGame();
+  private setupCanvas(): void {
+    const updateCanvasSize = () => {
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      
+      // Enhanced mobile detection
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                      ('ontouchstart' in window) ||
+                      (window.navigator.maxTouchPoints > 0);
+      
+      let targetWidth, targetHeight;
+      
+      if (isMobile) {
+        // iOS Safari specific handling
+        const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        
+        if (isIOSSafari) {
+          // Use screen dimensions for iOS to avoid viewport issues
+          // Prioritize portrait mode (height greater than width)
+          targetWidth = window.innerWidth;
+          targetHeight = window.innerHeight;
+          
+          console.log('iOS Safari canvas sizing (portrait mode):', {
+            screen: { width: screen.width, height: screen.height },
+            window: { width: window.innerWidth, height: window.innerHeight },
+            target: { width: targetWidth, height: targetHeight }
+          });
+        } else {
+          // Android and other mobile - use portrait mode
+          targetWidth = window.innerWidth;
+          targetHeight = window.innerHeight;
+        }
+        
+        // Ensure minimum playable size
+        if (targetWidth < 320) targetWidth = 320;
+        if (targetHeight < 240) targetHeight = 240;
+      } else {
+        // Desktop: use reasonable game window size
+        targetWidth = Math.min(window.innerWidth - 40, 1200);
+        targetHeight = Math.min(window.innerHeight - 40, 800);
+      }
+      
+      this.canvas.style.width = targetWidth + 'px';
+      this.canvas.style.height = targetHeight + 'px';
+      
+      this.canvas.width = targetWidth * devicePixelRatio;
+      this.canvas.height = targetHeight * devicePixelRatio;
+      
+      // Clear and reset the context
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      this.ctx.scale(devicePixelRatio, devicePixelRatio);
+      
+      console.log('Canvas updated:', {
+        style: { width: targetWidth, height: targetHeight },
+        actual: { width: this.canvas.width, height: this.canvas.height },
+        devicePixelRatio
+      });
+    };
+    
+    updateCanvasSize();
+  }
+
+  private setupMobileOptimizations(): void {
+    // Prevent scroll on mobile
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+    
+    // Prevent zoom on double tap
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (event) => {
+      const now = (new Date()).getTime();
+      if (now - lastTouchEnd <= 300) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, false);
+    
+    // Add mobile viewport meta tag if not present
+    let viewport = document.querySelector('meta[name="viewport"]') as HTMLMetaElement;
+    if (!viewport) {
+      viewport = document.createElement('meta');
+      viewport.name = 'viewport';
+      document.head.appendChild(viewport);
+    }
+    viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+    
+    // Handle orientation change with a delay to ensure proper resize
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => this.handleResize(), 100);
     });
   }
 
-  private setupAudioResumeHandler(): void {
-    // Resume audio context on user interaction (required by browsers)
-    const resumeAudio = () => {
-      this.audioManager.resume();
-      document.removeEventListener('click', resumeAudio);
-      document.removeEventListener('touchstart', resumeAudio);
-      document.removeEventListener('keydown', resumeAudio);
-    };
-
-    document.addEventListener('click', resumeAudio);
-    document.addEventListener('touchstart', resumeAudio);
-    document.addEventListener('keydown', resumeAudio);
+  private handleResize(): void {
+    this.setupCanvas();
+    this.inputManager.updateLayout();
+    
+    // Update player position if out of bounds
+    if (this.player) {
+      const pos = this.player.position;
+      const newX = Math.max(20, Math.min(this.canvas.width - 20, pos.x));
+      const newY = Math.max(20, Math.min(this.canvas.height - 20, pos.y));
+      this.player.position = new Vector2(newX, newY);
+    }
   }
 
   private initializeGame(): void {
@@ -180,6 +289,15 @@ export class Game {
   }
 
   update(deltaTime: number): void {
+    // Check for pause button toggle
+    if (this.inputManager.isPausePressed()) {
+      if (this.gameState === GameState.PAUSED) {
+        this.resumeGame();
+      } else {
+        this.pauseGame();
+      }
+    }
+    
     if (this.gameState !== GameState.PLAYING) return;
 
     const input = this.inputManager.getInputState();
@@ -394,6 +512,41 @@ export class Game {
     this.finalScoreElement.textContent = `Final Score: ${this.score}`;
     this.gameOverElement.classList.remove('hidden');
   }
+  
+  private pauseGame(): void {
+    if (this.gameState === GameState.PLAYING) {
+      this.gameState = GameState.PAUSED;
+      // Add a small vibration feedback on mobile if available
+      if ('vibrate' in navigator) {
+        try {
+          navigator.vibrate(50);
+        } catch (e) {
+          // Ignore vibration errors
+        }
+      }
+      
+      // Optionally play pause sound
+      // this.audioManager.playPause();
+    }
+  }
+  
+  private resumeGame(): void {
+    if (this.gameState === GameState.PAUSED) {
+      this.gameState = GameState.PLAYING;
+      
+      // Add a small vibration feedback on mobile if available
+      if ('vibrate' in navigator) {
+        try {
+          navigator.vibrate([20, 30, 20]);
+        } catch (e) {
+          // Ignore vibration errors
+        }
+      }
+      
+      // Optionally play resume sound
+      // this.audioManager.playResume();
+    }
+  }
 
   private restartGame(): void {
     this.gameOverElement.classList.add('hidden');
@@ -429,6 +582,19 @@ export class Game {
 
     // Render wave indicator
     this.renderWaveIndicator();
+    
+    // Render pause overlay when game is paused
+    if (this.gameState === GameState.PAUSED) {
+      this.renderPauseOverlay();
+    }
+
+    // Render mobile controls - force render on iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    if (isIOS) {
+      this.inputManager.getMobileControls().forceRender();
+    } else {
+      this.inputManager.getMobileControls().render();
+    }
   }
 
   private renderGrid(): void {
@@ -457,6 +623,26 @@ export class Game {
     this.ctx.font = '24px Courier New';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(`Wave ${this.wave}`, this.canvas.width / 2, 50);
+  }
+  
+  private renderPauseOverlay(): void {
+    // Semi-transparent overlay
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Pause title
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    this.ctx.font = 'bold 36px Courier New';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('PAUSED', this.canvas.width / 2, this.canvas.height / 2 - 40);
+    
+    // Instructions
+    this.ctx.font = '20px Courier New';
+    this.ctx.fillText('Tap the pause button to resume', this.canvas.width / 2, this.canvas.height / 2 + 20);
+    
+    // Display current score and wave
+    this.ctx.font = '16px Courier New';
+    this.ctx.fillText(`Score: ${this.score} | Wave: ${this.wave}`, this.canvas.width / 2, this.canvas.height / 2 + 60);
   }
 
   private collectPowerUp(powerUp: PowerUp): void {

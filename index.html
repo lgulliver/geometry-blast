@@ -3,10 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, minimal-ui" />
+    <!-- iOS Safari specific meta tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>Geometry Blast</title>
+    <!-- iOS Safari specific script -->
+    <script type="text/javascript">
+      // Try to hide iOS address bar
+      window.addEventListener('load', function() {
+        // iOS Safari specific code
+        if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+          document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+          setTimeout(function() { window.scrollTo(0, 1); }, 500);
+        }
+      });
+    </script>
   </head>
-  <body>
+  <body onresize="window.scrollTo(0, 0)" ontouchstart="">
     <div id="app">
       <canvas id="gameCanvas"></canvas>
       <div id="ui">
