@@ -35,8 +35,15 @@ export class Player extends Entity {
   }
 
   update(deltaTime: number): void {
+    // Store last position for trail effects
+    this.lastPosition = this.position.clone();
+    
     // Update position
     this.position = this.position.add(this.velocity.multiply(deltaTime));
+    
+    // Track distance moved for Geometry Wars style grid effects
+    const movement = this.lastPosition.distance(this.position);
+    this.distanceMoved += movement;
 
     // Apply friction
     this.velocity = this.velocity.multiply(0.95);

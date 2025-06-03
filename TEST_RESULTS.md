@@ -22,6 +22,8 @@
   - Press 'S' to toggle screen shake debug logging
   - Press 'V' to test all visual effects
   - Console commands: `game.enableMobileDebug()` / `game.disableMobileDebug()`
+  - **Grid Healing Speed Control**: `game.setGridHealingSpeed('slow'|'medium'|'fast'|'instant')`
+  - Check current speed: `game.getGridHealingSpeedPreset()`
 - **Performance Monitoring**: Logs only appear with 15+ entities or in debug mode
 - **Clean Console**: No spam logging during normal gameplay
 
@@ -36,6 +38,19 @@
   - Push and pull influences from entity movement
   - Explosion warps for impact feedback
   - Gravity wells for spatial distortion
+  - **Adjustable healing speed**: Control how quickly grid returns to normal ✅ COMPLETED
+    - 'slow': Prolonged distortions (spring=0.08, damping=0.95)
+    - 'medium': Balanced recovery (spring=0.15, damping=0.92)
+    - 'fast': Quick recovery (spring=0.25, damping=0.85)
+    - 'instant': Near-instant healing (spring=0.8, damping=0.7) - **DEFAULT** with enhanced physics
+      - 8x spring force multiplier for rapid but visible healing
+      - Snap-to-grid behavior for small displacements
+      - 1.3x damping multiplier for faster velocity decay
+      - **✅ COMPLETED**: Game.ts constructor now initializes with 'instant' mode by default
+      - **✅ COMPLETED**: Reduced warp radii for more focused distortions (explosion: 70/40, gravity: 60, ambient: 80-120)
+      - **✅ ADJUSTED**: Balanced instant mode physics to maintain visibility while providing fast healing
+    - Console commands: `game.setGridHealingSpeed('instant')` and `game.getGridHealingSpeedPreset()`
+    - Fixed getHealingSpeedPreset() to properly detect 'instant' mode parameters
   - Debug visualization with 'G' key
 - **Screen Shake System**:
   - Dynamic camera shake for impacts and explosions
@@ -45,10 +60,6 @@
 - **Visual Effect Testing**:
   - Press 'V' to trigger visual effect test
   - Tests particle systems, grid warping, and screen shake
-
-- **Grid Warping System**:
-  - Dynamic grid warping as entities move across it
-  - Spring physics for natural distortion effects
   - Different effect types (explosions, gravity wells)
   - Entity-influenced grid distortions based on velocity
 
@@ -94,12 +105,17 @@
 
 ```javascript
 // In browser console:
-game.toggleCollisionDebug()    // Toggle collision grid visualization
-game.toggleGridWarpDebug()     // Toggle grid warp influence visualization
-game.toggleScreenShakeDebug()  // Toggle screen shake debug logging
-game.testVisualEffects()       // Test all visual effects at once
-game.enableMobileDebug()       // Enable mobile input logging
-game.disableMobileDebug()      // Disable mobile input logging
+game.toggleCollisionDebug()      // Toggle collision grid visualization
+game.toggleGridWarpDebug()       // Toggle grid warp influence visualization
+game.toggleScreenShakeDebug()    // Toggle screen shake debug logging
+game.testVisualEffects()         // Test all visual effects at once
+game.enableMobileDebug()         // Enable mobile input logging
+game.disableMobileDebug()        // Disable mobile input logging
+
+// Grid Healing Speed Control:
+game.setGridHealingSpeed('instant')  // Set healing speed: 'slow', 'medium', 'fast', 'instant'
+game.getGridHealingSpeedPreset()     // Get current healing speed preset name
+game.debugAddExplosion(400, 300, 3.0) // Test grid warp with explosion
 ```
 
 ## **📊 PERFORMANCE EXPECTATIONS**

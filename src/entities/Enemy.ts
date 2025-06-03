@@ -63,8 +63,15 @@ export class Enemy extends Entity {
   update(deltaTime: number, playerPosition: Vector2, canvasWidth: number, canvasHeight: number): void {
     this.updateBehavior(deltaTime, playerPosition, canvasWidth, canvasHeight);
     
+    // Store last position for trail effects
+    this.lastPosition = this.position.clone();
+    
     // Update position
     this.position = this.position.add(this.velocity.multiply(deltaTime));
+    
+    // Track distance moved for Geometry Wars style grid effects
+    const movement = this.lastPosition.distance(this.position);
+    this.distanceMoved += movement;
 
     // Wrap around screen
     this.wrapPosition(canvasWidth, canvasHeight);

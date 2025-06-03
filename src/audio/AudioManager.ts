@@ -133,6 +133,27 @@ export class AudioManager {
     oscillator.stop(this.context.currentTime + 0.8);
   }
 
+  playPowerUp(): void {
+    if (!this.context || !this.enabled) return;
+
+    // Pleasant ascending chime
+    const oscillator = this.createOscillator(330, 'sine');
+    const gain = this.createGain(0.12);
+    
+    if (!oscillator || !gain) return;
+
+    oscillator.connect(gain);
+    gain.connect(this.context.destination);
+
+    // Quick ascending tones
+    oscillator.frequency.exponentialRampToValueAtTime(550, this.context.currentTime + 0.15);
+    oscillator.frequency.exponentialRampToValueAtTime(880, this.context.currentTime + 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.4);
+
+    oscillator.start();
+    oscillator.stop(this.context.currentTime + 0.4);
+  }
+
   setMasterVolume(volume: number): void {
     this.masterVolume = Math.max(0, Math.min(1, volume));
   }

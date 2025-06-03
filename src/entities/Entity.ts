@@ -3,15 +3,18 @@ import { Color } from '../utils/Color'
 
 export abstract class Entity {
   public position: Vector2;
+  public lastPosition: Vector2;  // Store previous position for trails
   public velocity: Vector2;
   public rotation: number;
   public scale: Vector2;
   public color: Color;
   public active: boolean;
   public radius: number;
+  public distanceMoved: number = 0; // Track total movement for trail effects
 
   constructor(x: number = 0, y: number = 0) {
     this.position = new Vector2(x, y);
+    this.lastPosition = new Vector2(x, y);
     this.velocity = Vector2.zero();
     this.rotation = 0;
     this.scale = new Vector2(1, 1);

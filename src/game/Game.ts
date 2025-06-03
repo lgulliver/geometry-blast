@@ -79,6 +79,10 @@ export class Game {
       this.canvas.width / (window.devicePixelRatio || 1), 
       this.canvas.height / (window.devicePixelRatio || 1)
     );
+    // Set default grid healing speed to 'instant' for snappy, responsive distortions
+    this.gridWarpSystem.setHealingSpeed('instant');
+    this.gridWarpSystem.startAmbientPulses();
+    
     this.screenShakeSystem = new ScreenShakeSystem();
     this.audioManager = new AudioManager();
     this.collisionSystem = new CollisionSystem(
@@ -250,6 +254,9 @@ export class Game {
     this.gridWarpSystem.clear();
     this.screenShakeSystem.clear();
     
+    // Start ambient grid pulses for Geometry Wars 3-like background effect
+    this.gridWarpSystem.startAmbientPulses();
+    
     this.score = 0;
     this.lives = 3;
     this.wave = 1;
@@ -346,6 +353,14 @@ export class Game {
     // Update player
     if (input.isMoving) {
       this.player.move(input.movement);
+      
+      // Apply grid warp from player movement (Geometry Wars 3 style)
+      const speed = this.player.velocity.magnitude();
+      if (speed > 0.5) { // Lowered from 2 to 0.5 for more responsive grid effects
+        const warpStrength = Math.min(1.5, speed / 2); // Adjusted scaling
+        this.gridWarpSystem.addEntityInfluence(this.player, warpStrength);
+        console.log(`Player speed: ${speed.toFixed(2)}, warp strength: ${warpStrength.toFixed(2)}`);
+      }
     }
     this.player.update(deltaTime);
     this.player.keepInBounds(this.canvas.width, this.canvas.height);
@@ -369,6 +384,9 @@ export class Game {
             direction
           );
           this.playerProjectiles.push(projectile);
+          
+          // Add small grid warp from projectile
+          this.gridWarpSystem.addEntityInfluence(projectile, 0.3);
         }
       } else {
         // Single shot
@@ -378,12 +396,26 @@ export class Game {
           input.shooting
         );
         this.playerProjectiles.push(projectile);
+        
+        // Add small grid warp from projectile
+        this.gridWarpSystem.addEntityInfluence(projectile, 0.4);
       }
+      
+      // Add small grid warp from gun recoil
+      this.gridWarpSystem.addEntityInfluence(this.player, 0.5);
     }
 
     // Update enemies
     this.enemies.forEach(enemy => {
       enemy.update(deltaTime, this.player.position, this.canvas.width, this.canvas.height);
+      
+      // Apply grid warp effect from fast-moving enemies
+      const speed = enemy.velocity.magnitude();
+      if (speed > 1.0) { // Lowered from 2.5 to 1.0 for more visible effects
+        const warpStrength = Math.min(1.2, speed / 3); // Adjusted scaling
+        this.gridWarpSystem.addEntityInfluence(enemy, warpStrength);
+        console.log(`Enemy speed: ${speed.toFixed(2)}, warp strength: ${warpStrength.toFixed(2)}`);
+      }
 
       // Enemy shooting
       if (enemy.canShoot()) {
@@ -503,12 +535,19 @@ export class Game {
           this.audioManager.playEnemyHit();
           this.particleSystem.createEnemyDeathExplosion(enemy.position, enemy.color);
           
+          // Add grid warp effect on enemy death (Geometry Wars 3 style)
+          this.gridWarpSystem.addExplosionWarp(enemy.position, 1.0 + (enemy.radius / 20));
+          this.screenShakeSystem.addEnemyHitShake();
+          
           // Chance to spawn power-up on enemy death
           if (Math.random() < 0.15) { // 15% chance
             this.spawnPowerUp(enemy.position.x, enemy.position.y);
           }
           
           enemy.destroy();
+        } else {
+          // Enemy hit but not destroyed
+          this.gridWarpSystem.addEntityInfluence(enemy, 0.6);
         }
       }
     );
@@ -568,11 +607,19 @@ export class Game {
       // Shield absorbed the hit - just play a different sound effect
       this.audioManager.playEnemyHit(); // Reuse enemy hit sound for shield
       this.particleSystem.createExplosion(this.player.position, Color.cyan(), 8);
+      
+      // Add mild grid warp when shield absorbs damage
+      this.gridWarpSystem.addEntityInfluence(this.player, 1.2);
+      this.screenShakeSystem.addShake(3, 0.2);
       return;
     }
     
     this.lives--;
     this.invulnerabilityTimer = 2.0; // 2 seconds of invulnerability
+    
+    // Add dramatic grid warp and screen shake when player is hit
+    this.gridWarpSystem.addExplosionWarp(this.player.position, 2.0);
+    this.screenShakeSystem.addPlayerHitShake();
     
     if (this.lives <= 0) {
       this.gameOver();
@@ -729,7 +776,13 @@ export class Game {
   }
 
   private collectPowerUp(powerUp: PowerUp): void {
+    // Visual and audio feedback
+    this.audioManager.playPowerUp();
     this.particleSystem.createPickupEffect(powerUp.position);
+    
+    // Add special gravity well effect for power-up collection (GW3-style)
+    this.gridWarpSystem.addGravityWell(powerUp.position, 1.2);
+    this.screenShakeSystem.addPowerUpShake();
     
     switch (powerUp.type) {
       case PowerUpType.RAPID_FIRE:
@@ -762,6 +815,31 @@ export class Game {
     // Create massive explosion effect
     this.particleSystem.createExplosion(this.player.position, Color.red(), 50);
     this.audioManager.playExplosion();
+    
+    // Create massive grid warp distortion (Geometry Wars 3 style)
+    // First a strong push wave
+    this.gridWarpSystem.addExplosionWarp(this.player.position, 3.0);
+    
+    // Then create ripple effects at different distances
+    setTimeout(() => {
+      // Secondary effects with delay
+      const center = this.player.position;
+      const radius = 100;
+      
+      // Create a ring of gravity wells around the player
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        const pos = center.add(new Vector2(
+          Math.cos(angle) * radius,
+          Math.sin(angle) * radius
+        ));
+        
+        this.gridWarpSystem.addGravityWell(pos, 0.8);
+      }
+      
+      // Add more intense screen shake
+      this.screenShakeSystem.addExplosionShake(0, 150);
+    }, 150);
   }
 
   /**
@@ -808,6 +886,22 @@ export class Game {
     const newDebugMode = !this.gridWarpSystem.isDebugMode();
     this.gridWarpSystem.setDebugMode(newDebugMode);
     console.log(`🌐 Grid warp debug ${newDebugMode ? 'enabled' : 'disabled'}`);
+  }
+  
+  /**
+   * Set the healing speed of grid distortions
+   * Controls how quickly the grid returns to normal after distortions
+   */
+  setGridHealingSpeed(speed: 'slow' | 'medium' | 'fast' | 'instant'): void {
+    this.gridWarpSystem.setHealingSpeed(speed);
+    console.log(`🌐 Grid healing speed set to: ${speed}`);
+  }
+  
+  /**
+   * Get current grid healing speed preset
+   */
+  getGridHealingSpeedPreset(): string {
+    return this.gridWarpSystem.getHealingSpeedPreset();
   }
   
   /**
