@@ -22,7 +22,7 @@ export class MobileControls {
   private moveDirection: Vector2 = Vector2.zero();
   private lastFrameTime: number = 0;
   private isIOSSafari: boolean;
-  private debugMode: boolean = false; // Disabled by default - can be enabled for testing
+  private debugMode: boolean = false; // Disabled for production
   private isPaused: boolean = false;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -34,11 +34,19 @@ export class MobileControls {
     this.isIOSSafari = /iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream;
     this.isMobile = this.detectMobile();
     
-    // Explicitly enable controls on iOS
-    if (this.isIOSSafari) {
-      if (this.debugMode) console.log('iOS device detected, forcing mobile controls');
-      this.isMobile = true;
-    }
+    // Remove forced mobile controls for production
+    // if (this.isIOSSafari || 'ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    //   if (this.debugMode) console.log('Touch device detected, forcing mobile controls');
+    //   this.isMobile = true;
+    // }
+    
+    console.log('MobileControls initialized:', {
+      isMobile: this.isMobile,
+      isIOSSafari: this.isIOSSafari,
+      userAgent: userAgent,
+      hasTouch: 'ontouchstart' in window,
+      maxTouchPoints: navigator.maxTouchPoints
+    });
     
     // Initialize controls with visual feedback effect
     this.moveStick = {
@@ -121,12 +129,12 @@ export class MobileControls {
     const isFirefox = userAgent.includes('Firefox');
     const isIOSFirefox = isIOSSafari && isFirefox;
     
-    // Also check for screen size as additional hint
-    const isSmallScreen = window.innerWidth <= 1024 || window.innerHeight <= 768;
-    const isMobile = isMobileUA || hasTouch || isIOSSafari || isIOSFirefox || isSmallScreen;
+    // Also check for screen size as additional hint (but only if we have touch)
+    const isSmallScreen = (window.innerWidth <= 1024 || window.innerHeight <= 768) && hasTouch;
+    const isMobile = isMobileUA || isIOSSafari || isIOSFirefox || isSmallScreen;
     
     // FOR DEBUGGING: Force mobile controls to show
-    const forceShow = true; // Set to false once debugging is complete
+    const forceShow = false; // No longer force mobile controls
     
     if (this.debugMode) {
       console.log('Mobile detection:', {
@@ -148,16 +156,25 @@ export class MobileControls {
   private setupEventListeners(): void {
     if (this.debugMode) console.log('Setting up mobile controls, isMobile:', this.isMobile);
     
-    if (!this.isMobile) return;
+    // Only process touch events if mobile
+    const shouldProcessTouch = this.isMobile; // Only process touch on mobile
 
     // iOS Safari needs special handling for touch events
     const options = { passive: false };
     
     // Touch events
-    this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), options);
-    this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this), options);
-    this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this), options);
-    this.canvas.addEventListener('touchcancel', this.handleTouchEnd.bind(this), options);
+    this.canvas.addEventListener('touchstart', (e) => {
+      if (shouldProcessTouch) this.handleTouchStart(e);
+    }, options);
+    this.canvas.addEventListener('touchmove', (e) => {
+      if (shouldProcessTouch) this.handleTouchMove(e);
+    }, options);
+    this.canvas.addEventListener('touchend', (e) => {
+      if (shouldProcessTouch) this.handleTouchEnd(e);
+    }, options);
+    this.canvas.addEventListener('touchcancel', (e) => {
+      if (shouldProcessTouch) this.handleTouchEnd(e);
+    }, options);
     
     // FOR DEBUGGING: Add mouse events to test controls on desktop
     this.canvas.addEventListener('mousedown', (e) => {
@@ -271,7 +288,9 @@ export class MobileControls {
     for (let i = 0; i < event.changedTouches.length; i++) {
       const touch = event.changedTouches[i];
       const rect = this.canvas.getBoundingClientRect();
-      const touchPos = new Vector2(
+      
+      // Get touch position relative to canvas
+      let touchPos = new Vector2(
         touch.clientX - rect.left,
         touch.clientY - rect.top
       );
@@ -280,18 +299,21 @@ export class MobileControls {
         console.log('Touch position (raw):', touchPos, 'Canvas rect:', rect);
       }
       
-      // Scale for device pixel ratio - SIMPLIFIED for debugging
-      const devicePixelRatio = window.devicePixelRatio || 1;
+      // Scale touch coordinates to match logical canvas coordinates
+      // The canvas actual size vs CSS size creates scaling issues
+      const scaleX = this.canvas.width / this.canvas.clientWidth;
+      const scaleY = this.canvas.height / this.canvas.clientHeight;
       
-      // Use simple 1:1 scaling for debugging
-      const canvasToClientRatio = this.canvas.width / this.canvas.clientWidth;
-      touchPos.x *= canvasToClientRatio;
-      touchPos.y *= canvasToClientRatio;
+      // Apply device pixel ratio scaling
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      touchPos.x = (touchPos.x * scaleX) / devicePixelRatio;
+      touchPos.y = (touchPos.y * scaleY) / devicePixelRatio;
       
       if (this.debugMode) {
-        console.log('Touch position (scaled):', touchPos, 'Ratios:', {
-          DPR: devicePixelRatio,
-          canvasToClient: canvasToClientRatio,
+        console.log('Touch position (scaled):', touchPos, 'Scaling info:', {
+          devicePixelRatio: devicePixelRatio,
+          scaleX: scaleX,
+          scaleY: scaleY,
           canvas: { width: this.canvas.width, height: this.canvas.height },
           client: { width: this.canvas.clientWidth, height: this.canvas.clientHeight },
           moveStickOrigin: this.moveStickOrigin,
@@ -352,18 +374,18 @@ export class MobileControls {
       
       if (this.moveStick.touchId === touch.identifier && this.moveStick.isPressed) {
         const rect = this.canvas.getBoundingClientRect();
-        const touchPos = new Vector2(
+        let touchPos = new Vector2(
           touch.clientX - rect.left,
           touch.clientY - rect.top
         );
         
-        // Scale for device pixel ratio - SIMPLIFIED for debugging
+        // Scale touch coordinates to match logical canvas coordinates
+        const scaleX = this.canvas.width / this.canvas.clientWidth;
+        const scaleY = this.canvas.height / this.canvas.clientHeight;
         const devicePixelRatio = window.devicePixelRatio || 1;
         
-        // Use simple 1:1 scaling for debugging  
-        const canvasToClientRatio = this.canvas.width / this.canvas.clientWidth;
-        touchPos.x *= canvasToClientRatio;
-        touchPos.y *= canvasToClientRatio;
+        touchPos.x = (touchPos.x * scaleX) / devicePixelRatio;
+        touchPos.y = (touchPos.y * scaleY) / devicePixelRatio;
         
         // Constrain to stick radius
         const direction = touchPos.subtract(this.moveStickOrigin);
@@ -543,6 +565,7 @@ export class MobileControls {
   }
 
   private _render(force: boolean = false): void {
+    // Only show controls if on mobile or force is true
     if (!this.isMobile && !force) {
       return;
     }
@@ -553,10 +576,20 @@ export class MobileControls {
     const devicePixelRatio = window.devicePixelRatio || 1;
     this.ctx.scale(devicePixelRatio, devicePixelRatio);
     
+    // Debug: log rendering attempt
+    if (this.debugMode) {
+      console.log('Rendering mobile controls:', {
+        isMobile: this.isMobile,
+        force: force,
+        devicePixelRatio: devicePixelRatio,
+        canvasSize: { width: this.canvas.width, height: this.canvas.height }
+      });
+    }
+    
     // Render movement stick base
-    this.ctx.fillStyle = Color.white().withAlpha(0.5).toString(); // More visible for debugging
-    this.ctx.strokeStyle = Color.white().withAlpha(0.8).toString(); // More visible for debugging
-    this.ctx.lineWidth = 3; // Thicker for debugging
+    this.ctx.fillStyle = Color.cyan().withAlpha(0.8).toString(); // Very visible for debugging
+    this.ctx.strokeStyle = Color.white().withAlpha(1.0).toString(); // Very visible for debugging
+    this.ctx.lineWidth = 4; // Thicker for debugging
     this.ctx.beginPath();
     this.ctx.arc(
       this.moveStickOrigin.x / devicePixelRatio, 
@@ -571,10 +604,10 @@ export class MobileControls {
     const stickEffect = this.moveStick.pressEffect || 0;
     const stickColor = stickEffect > 0 ? 
                      Color.cyan().withAlpha(0.6 + 0.4 * stickEffect) : 
-                     Color.white().withAlpha(0.6);
+                     Color.yellow().withAlpha(0.8); // Very visible for debugging
     this.ctx.fillStyle = stickColor.toString();
-    this.ctx.strokeStyle = Color.white().withAlpha(0.8).toString();
-    this.ctx.lineWidth = 2;
+    this.ctx.strokeStyle = Color.white().withAlpha(1.0).toString(); // Very visible
+    this.ctx.lineWidth = 3; // Thicker
     this.ctx.beginPath();
     this.ctx.arc(
       this.moveStick.position.x / devicePixelRatio, 
@@ -589,10 +622,10 @@ export class MobileControls {
     const shootEffect = this.shootButton.pressEffect || 0;
     const shootColor = shootEffect > 0 ? 
                      Color.red().withAlpha(0.6 + 0.4 * shootEffect) :
-                     Color.orange().withAlpha(0.6); // More visible for debugging
+                     Color.orange().withAlpha(0.8); // Very visible for debugging
     this.ctx.fillStyle = shootColor.toString();
-    this.ctx.strokeStyle = Color.orange().withAlpha(0.8 + 0.2 * shootEffect).toString(); // More visible
-    this.ctx.lineWidth = 3; // Thicker for debugging
+    this.ctx.strokeStyle = Color.orange().withAlpha(1.0).toString(); // Very visible
+    this.ctx.lineWidth = 4; // Thicker for debugging
     this.ctx.beginPath();
     this.ctx.arc(
       this.shootButton.position.x / devicePixelRatio, 

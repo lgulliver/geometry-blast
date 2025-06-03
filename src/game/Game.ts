@@ -245,7 +245,13 @@ export class Game {
   }
 
   private initializeGame(): void {
-    this.player = new Player(this.canvas.width / 2, this.canvas.height / 2);
+    // Ensure canvas dimensions are properly calculated for mobile
+    const canvasWidth = this.canvas.width / (window.devicePixelRatio || 1);
+    const canvasHeight = this.canvas.height / (window.devicePixelRatio || 1);
+    
+    // Initialize player at the center of the logical canvas size
+    this.player = new Player(canvasWidth / 2, canvasHeight / 2);
+    
     this.enemies = [];
     this.playerProjectiles = [];
     this.enemyProjectiles = [];
@@ -344,6 +350,16 @@ export class Game {
     if (this.gameState !== GameState.PLAYING) return;
 
     const input = this.inputManager.getInputState();
+
+    // Debug: Log input state
+    if (input.isMoving || input.isShooting) {
+      console.log('Input state:', {
+        movement: input.movement,
+        shooting: input.shooting,
+        isMoving: input.isMoving,
+        isShooting: input.isShooting
+      });
+    }
 
     // Update invulnerability timer
     if (this.invulnerabilityTimer > 0) {
@@ -723,13 +739,8 @@ export class Game {
       this.renderPauseOverlay();
     }
 
-    // Render mobile controls - force render on iOS
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    if (isIOS) {
-      this.inputManager.getMobileControls().forceRender();
-    } else {
-      this.inputManager.getMobileControls().render();
-    }
+    // Render mobile controls - always force render when debugging
+    this.inputManager.getMobileControls().forceRender();
 
     // Restore canvas transform after screen shake
     this.ctx.restore();

@@ -16,15 +16,11 @@ export class InputManager {
   private isTouching: boolean = false;
   private canvas: HTMLCanvasElement;
   private mobileControls: MobileControls;
-  private debugMode: boolean = false; // Disabled by default
+  private debugMode: boolean = false; // Disabled for production
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.mobileControls = new MobileControls(canvas);
-    
-    if (this.debugMode) {
-      console.log('InputManager initialized, mobile device:', this.mobileControls.isMobileDevice());
-    }
     
     this.setupEventListeners();
   }
@@ -128,14 +124,6 @@ export class InputManager {
     if (this.mobileControls.isMobileDevice()) {
       const mobileMovement = this.mobileControls.getMoveDirection();
       const mobileShooting = this.mobileControls.isShootPressed();
-      
-      if (this.debugMode && (mobileMovement.magnitude() > 0.1 || mobileShooting)) {
-        console.log('Mobile input:', {
-          movement: mobileMovement,
-          shooting: mobileShooting,
-          movementMagnitude: mobileMovement.magnitude()
-        });
-      }
       
       if (mobileMovement.magnitude() > 0.1) {
         movement.x = mobileMovement.x;

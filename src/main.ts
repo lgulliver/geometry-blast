@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Wait a bit for iOS to settle
   setTimeout(() => {
     const game = new Game(canvas);
+    
     game.start();
     
     // Add debug shortcuts
@@ -75,9 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
     
-    // Make game accessible for debugging
-    (window as any).game = game;
-    
     console.log('🎮 Geometry Blast initialized!');
     console.log('Controls:');
     console.log('  WASD or Arrow Keys - Move');
@@ -89,8 +87,5 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('  G - Toggle grid warp debug visualization');
     console.log('  S - Toggle screen shake debug logging');
     console.log('  V - Test all visual effects');
-    console.log('  game.enableMobileDebug() - Enable mobile input logging');
-    console.log('  game.disableMobileDebug() - Disable mobile input logging');
-    console.log('  game.stressTestCollisions(30) - Spawn entities for performance testing');
   }, 100);
 });
