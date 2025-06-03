@@ -33,7 +33,7 @@ export class GridWarpSystem {
   private gridWidth: number = 1.0; // Grid line width
   private debugMode: boolean = false;
 
-  constructor(canvasWidth: number, canvasHeight: number, gridSize: number = 50) {
+  constructor(canvasWidth: number, canvasHeight: number, gridSize: number = 30) { // Smaller grid for finer distortions
     this.gridSize = gridSize;
     this.canvasWidth = canvasWidth;
     this.canvasHeight = canvasHeight;
@@ -90,13 +90,13 @@ export class GridWarpSystem {
     
     // Calculate speed-based influence - more responsive to slow entities
     const speed = velocity.magnitude();
-    const speedFactor = Math.min(3.0, Math.max(1.0, speed / 2)); // Lower speed threshold, higher multiplier
+    const speedFactor = Math.min(2.0, Math.max(1.0, speed / 3)); // More conservative speed scaling
     
-    // Create larger radius for faster moving entities, like in Geometry Wars 3
-    const radius = Math.max(10, entity.radius * 2.0 * speedFactor); // Larger base radius
+    // Create much tighter radius around entities for focused distortion
+    const radius = Math.max(8, entity.radius * 1.2 + speedFactor * 3); // Much smaller, tighter radius
     
-    // Create stronger influence for faster entities
-    const influenceStrength = strength * 100 * speedFactor; // Much stronger base influence
+    // Create stronger influence for the smaller area
+    const influenceStrength = strength * 150 * speedFactor; // Stronger to compensate for smaller radius
     
     console.log(`Adding entity influence: strength=${influenceStrength.toFixed(2)}, radius=${radius.toFixed(2)}, pos=(${entity.position.x.toFixed(1)}, ${entity.position.y.toFixed(1)})`);
     
@@ -130,8 +130,8 @@ export class GridWarpSystem {
     // Main explosion push
     this.influences.push({
       position: position.clone(),
-      strength: strength * 80, // Stronger initial push
-      radius: 70, // More focused radius
+      strength: strength * 120, // Stronger for smaller radius
+      radius: 35, // Much smaller, more focused radius
       type: 'push',
       decay: 0.91 // Slightly faster decay
     });
@@ -142,8 +142,8 @@ export class GridWarpSystem {
       if (strength > 1.0) {
         this.influences.push({
           position: position.clone(),
-          strength: strength * 40,
-          radius: 10, // More focused secondary effect
+          strength: strength * 60,
+          radius: 20, // Smaller secondary effect
           type: 'pull', // Pull for the secondary effect
           decay: 0.93
         });
@@ -156,8 +156,8 @@ export class GridWarpSystem {
     // Main gravity well with Geometry Wars 3 style pulsing effect
     this.influences.push({
       position: position.clone(),
-      strength: strength * 50,
-      radius: 20, // More focused influence area
+      strength: strength * 80, // Stronger for smaller radius
+      radius: 25, // Tighter influence area
       type: 'pull',
       decay: 0.93 // Slightly faster decay for more dynamic feel
     });
