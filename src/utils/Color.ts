@@ -46,6 +46,10 @@ export class Color {
     return new Color(128, 128, 128, 1);
   }
 
+  static gold(): Color {
+    return new Color(255, 215, 0, 1);
+  }
+
   toString(): string {
     if (this.a === 1) {
       return `rgb(${this.r}, ${this.g}, ${this.b})`;

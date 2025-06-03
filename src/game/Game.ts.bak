@@ -21,8 +21,25 @@ export enum GameState {
 export class Game {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private inputManager: InputManager;
-  private particleSystem: ParticleSystem;
+  private inputManager: Inp  // Debug method to test all visual effects at once
+  testVisualEffects(): void {
+    console.log('🎆 Testing All Visual Effects...');
+    const center = new Vector2(this.canvas.width / 2, this.canvas.height / 2);
+    
+    // Test particle effects
+    this.particleSystem.createExplosion(center, Color.red(), 30);
+    this.particleSystem.createMuzzleFlash(center.add(new Vector2(-50, 0)), new Vector2(1, 0)); // Right direction
+    this.particleSystem.createEngineTrail(center.add(new Vector2(50, 0)), new Vector2(-1, 0)); // Left direction
+    
+    // Test screen shake
+    this.screenShakeSystem.addExplosionShake(0, 80);
+    
+    // Test grid warping
+    this.gridWarpSystem.addExplosionWarp(center, 2.0);
+    this.gridWarpSystem.addGravityWell(center.add(new Vector2(100, 100)), 1.5);
+    
+    console.log('✨ Visual effects test complete! Watch the screen for effects.');
+  }e particleSystem: ParticleSystem;
   private gridWarpSystem: GridWarpSystem;
   private screenShakeSystem: ScreenShakeSystem;
   private audioManager: AudioManager;
@@ -346,6 +363,14 @@ export class Game {
     // Update player
     if (input.isMoving) {
       this.player.move(input.movement);
+      
+      // Add engine trail effect
+      this.particleSystem.createEngineTrail(this.player.position, input.movement);
+      
+      // Add grid warp influence for player movement
+      if (input.movement.magnitude() > 0.5) {
+        this.gridWarpSystem.addEntityInfluence(this.player, 0.5);
+      }
     }
     this.player.update(deltaTime);
     this.player.keepInBounds(this.canvas.width, this.canvas.height);
@@ -354,6 +379,9 @@ export class Game {
     if (input.isShooting && this.player.canShoot()) {
       this.player.shoot();
       this.audioManager.playShoot();
+      
+      // Add muzzle flash effect
+      this.particleSystem.createMuzzleFlash(this.player.position, input.shooting);
       
       if (this.player.powerUps.multiShot) {
         // Multi-shot creates 3 projectiles in a spread
@@ -384,6 +412,11 @@ export class Game {
     // Update enemies
     this.enemies.forEach(enemy => {
       enemy.update(deltaTime, this.player.position, this.canvas.width, this.canvas.height);
+      
+      // Add grid warp influence for enemy movement
+      if (enemy.velocity.magnitude() > 50) {
+        this.gridWarpSystem.addEntityInfluence(enemy, 0.3);
+      }
 
       // Enemy shooting
       if (enemy.canShoot()) {
@@ -422,9 +455,11 @@ export class Game {
 
     // Update particle system
     this.particleSystem.update(deltaTime);
-    
-    // Update visual systems
+
+    // Update grid warp system
     this.gridWarpSystem.update(deltaTime);
+
+    // Update screen shake system
     this.screenShakeSystem.update(deltaTime);
 
     // Collision detection
@@ -496,12 +531,20 @@ export class Game {
         const projectile = result.entityA as Projectile;
         const enemy = result.entityB as Enemy;
         
+        // Add impact effect
+        const impactNormal = enemy.position.subtract(projectile.position).normalize();
+        this.particleSystem.createImpactEffect(projectile.position, impactNormal, projectile.color);
+        
         projectile.destroy();
         
         if (enemy.takeDamage(1)) {
           this.score += this.getEnemyScore(enemy.type);
           this.audioManager.playEnemyHit();
+          
+          // Enhanced explosion with screen shake and grid warp
           this.particleSystem.createEnemyDeathExplosion(enemy.position, enemy.color);
+          this.screenShakeSystem.addEnemyHitShake();
+          this.gridWarpSystem.addExplosionWarp(enemy.position, 1.0);
           
           // Chance to spawn power-up on enemy death
           if (Math.random() < 0.15) { // 15% chance
@@ -509,6 +552,9 @@ export class Game {
           }
           
           enemy.destroy();
+        } else {
+          // Enemy hit but not destroyed
+          this.screenShakeSystem.addEnemyHitShake();
         }
       }
     );
@@ -520,6 +566,11 @@ export class Game {
         this.player,
         (result) => {
           const projectile = result.entityA as Projectile;
+          
+          // Add impact effect
+          const impactNormal = this.player.position.subtract(projectile.position).normalize();
+          this.particleSystem.createImpactEffect(projectile.position, impactNormal, Color.red());
+          
           projectile.destroy();
           this.playerHit();
         }
@@ -542,6 +593,12 @@ export class Game {
       (result) => {
         const powerUp = result.entityA as PowerUp;
         this.collectPowerUp(powerUp);
+        
+        // Enhanced pickup effect
+        this.particleSystem.createPickupEffect(powerUp.position);
+        this.screenShakeSystem.addPowerUpShake();
+        this.gridWarpSystem.addGravityWell(powerUp.position, 0.8);
+        
         powerUp.destroy();
       }
     );
@@ -568,6 +625,7 @@ export class Game {
       // Shield absorbed the hit - just play a different sound effect
       this.audioManager.playEnemyHit(); // Reuse enemy hit sound for shield
       this.particleSystem.createExplosion(this.player.position, Color.cyan(), 8);
+      this.screenShakeSystem.addEnemyHitShake();
       return;
     }
     
@@ -579,6 +637,8 @@ export class Game {
     } else {
       this.audioManager.playExplosion();
       this.particleSystem.createExplosion(this.player.position, Color.cyan(), 15);
+      this.screenShakeSystem.addPlayerHitShake();
+      this.gridWarpSystem.addExplosionWarp(this.player.position, 1.5);
     }
   }
 
@@ -586,6 +646,8 @@ export class Game {
     this.gameState = GameState.GAME_OVER;
     this.audioManager.playPlayerDeath();
     this.particleSystem.createPlayerDeathExplosion(this.player.position);
+    this.screenShakeSystem.addExplosionShake(0, 100); // Strong screen shake for game over
+    this.gridWarpSystem.addExplosionWarp(this.player.position, 3.0);
     this.finalScoreElement.textContent = `Final Score: ${this.score}`;
     this.gameOverElement.classList.remove('hidden');
   }
@@ -662,10 +724,8 @@ export class Game {
     // Render particles
     this.particleSystem.render(this.ctx);
 
-    // Render collision system debug (if enabled)
+    // Render debug visualizations (if enabled)
     this.collisionSystem.renderDebug(this.ctx);
-    
-    // Render grid warp debug (if enabled)
     this.gridWarpSystem.renderDebug(this.ctx);
 
     // Render wave indicator
@@ -764,59 +824,18 @@ export class Game {
     this.audioManager.playExplosion();
   }
 
-  /**
-   * Test all visual effects in the game at once
-   * This is a debug method called from console for testing
-   */
-  testVisualEffects(): void {
-    console.log('🎆 Testing All Visual Effects...');
-    
-    // Use canvas center for effects
-    const center = new Vector2(
-      this.canvas.width / (window.devicePixelRatio || 1) / 2, 
-      this.canvas.height / (window.devicePixelRatio || 1) / 2
-    );
-    
-    // Test particle effects
-    this.particleSystem.createExplosion(center, Color.red(), 30);
-    this.particleSystem.createMuzzleFlash(center.add(new Vector2(50, 0)), new Vector2(-1, 0));
-    this.particleSystem.createEngineTrail(center.add(new Vector2(-50, 0)), new Vector2(1, 0));
-    
-    // Test screen shake
-    this.screenShakeSystem.addExplosionShake(0, 80);
-    
-    // Test grid warping
-    this.gridWarpSystem.addExplosionWarp(center, 2.0);
-    this.gridWarpSystem.addGravityWell(center.add(new Vector2(100, 100)), 1.5);
-    
-    console.log('✨ Visual effects test complete! Watch the screen for effects.');
-  }
-
-  /**
-   * Toggle collision system debug visualization
-   */
+  // Debug method to toggle collision system visualization
   toggleCollisionDebug(): void {
-    const currentDebugMode = this.collisionSystem['debugMode'];
-    this.collisionSystem['debugMode'] = !currentDebugMode;
-    console.log(`🔍 Collision debug ${this.collisionSystem['debugMode'] ? 'enabled' : 'disabled'}`);
-  }
-  
-  /**
-   * Toggle grid warp system debug visualization
-   */
-  toggleGridWarpDebug(): void {
-    const newDebugMode = !this.gridWarpSystem.isDebugMode();
-    this.gridWarpSystem.setDebugMode(newDebugMode);
-    console.log(`🌐 Grid warp debug ${newDebugMode ? 'enabled' : 'disabled'}`);
-  }
-  
-  /**
-   * Toggle screen shake system debug logging
-   */
-  toggleScreenShakeDebug(): void {
-    const newDebugMode = !this.screenShakeSystem.isDebugMode();
-    this.screenShakeSystem.setDebugMode(newDebugMode);
-    console.log(`📳 Screen shake debug ${newDebugMode ? 'enabled' : 'disabled'}`);
+    const wasEnabled = this.collisionSystem['debugMode'];
+    this.collisionSystem.setDebugMode(!wasEnabled);
+    
+    if (!wasEnabled) {
+      console.log('🎯 Collision Debug: ENABLED');
+      console.log('  Yellow grid shows spatial partitioning');
+      console.log('  Press C again to disable');
+    } else {
+      console.log('🎯 Collision Debug: DISABLED');
+    }
   }
 
   // Debug method to enable mobile controls debug mode
@@ -852,6 +871,57 @@ export class Game {
     this.collisionSystem.setDebugMode(true);
     console.log('✅ Stress test entities spawned. Collision debug enabled.');
     console.log('Watch for performance metrics in console every ~3 seconds.');
+  }
+
+  // Debug method to toggle grid warp system visualization
+  toggleGridWarpDebug(): void {
+    // Toggle debug mode using the setter method
+    const wasEnabled = this.gridWarpSystem.isDebugMode();
+    this.gridWarpSystem.setDebugMode(!wasEnabled);
+    
+    if (!wasEnabled) {
+      console.log('🌀 Grid Warp Debug: ENABLED');
+      console.log('  Red circles show warp influences');
+      console.log('  Grid lines show dynamic warping effects');
+      console.log('  Call game.toggleGridWarpDebug() again to disable');
+    } else {
+      console.log('🌀 Grid Warp Debug: DISABLED');
+    }
+  }
+
+  // Debug method to toggle screen shake visualization
+  toggleScreenShakeDebug(): void {
+    // Toggle debug mode using setter method
+    const wasEnabled = this.screenShakeSystem.isDebugMode();
+    this.screenShakeSystem.setDebugMode(!wasEnabled);
+    
+    if (!wasEnabled) {
+      console.log('📳 Screen Shake Debug: ENABLED');
+      console.log('  Console will log shake events and intensities');
+      console.log('  Call game.toggleScreenShakeDebug() again to disable');
+    } else {
+      console.log('📳 Screen Shake Debug: DISABLED');
+    }
+  }
+
+  // Debug method to test all visual effects at once
+  testVisualEffects(): void {
+    console.log('🎆 Testing All Visual Effects...');
+    const center = new Vector2(this.canvas.width / 2, this.canvas.height / 2);
+    
+    // Test particle effects
+    this.particleSystem.createExplosion(center, Color.red(), 30);
+    this.particleSystem.createMuzzleFlash(center.add(new Vector2(-50, 0)), new Vector2(1, 0));
+    this.particleSystem.createEngineTrail(center.add(new Vector2(50, 0)), new Vector2(-1, 0));
+    
+    // Test screen shake
+    this.screenShakeSystem.addExplosionShake(1.0, 80);
+    
+    // Test grid warping
+    this.gridWarpSystem.addExplosionWarp(center, 2.0);
+    this.gridWarpSystem.addGravityWell(center.add(new Vector2(100, 100)), 1.5);
+    
+    console.log('✨ Visual effects test complete! Watch the screen for effects.');
   }
 
   start(): void {

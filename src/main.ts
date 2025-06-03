@@ -58,10 +58,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const game = new Game(canvas);
     game.start();
     
-    // Add debug shortcut - press 'C' to toggle collision debug
+    // Add debug shortcuts
     document.addEventListener('keydown', (event) => {
       if (event.key.toLowerCase() === 'c') {
+        // Toggle collision debug
         game.toggleCollisionDebug();
+      } else if (event.key.toLowerCase() === 'g') {
+        // Toggle grid warp debug
+        game.toggleGridWarpDebug();
+      } else if (event.key.toLowerCase() === 's') {
+        // Toggle screen shake debug
+        game.toggleScreenShakeDebug();
+      } else if (event.key.toLowerCase() === 'v') {
+        // Test visual effects
+        game.testVisualEffects();
       }
     });
     
@@ -76,6 +86,9 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('  Gamepad - Left stick move, right stick shoot');
     console.log('Debug Commands:');
     console.log('  C - Toggle collision debug visualization');
+    console.log('  G - Toggle grid warp debug visualization');
+    console.log('  S - Toggle screen shake debug logging');
+    console.log('  V - Test all visual effects');
     console.log('  game.enableMobileDebug() - Enable mobile input logging');
     console.log('  game.disableMobileDebug() - Disable mobile input logging');
     console.log('  game.stressTestCollisions(30) - Spawn entities for performance testing');
