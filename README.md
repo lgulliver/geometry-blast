@@ -45,7 +45,7 @@ Push a tag like `v1.0.0` to trigger GitHub Actions deployment to Pages.
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines, code style, and how to get started.
 
 ## License
-MIT
+GNU GPLv3 
 
 ---
 *Geometry Blast is a personal project inspired by the classic Geometry Wars series. Not affiliated with Bizarre Creations or Activision.*

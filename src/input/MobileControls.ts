@@ -8,6 +8,7 @@ export interface TouchControl {
   isPressed: boolean;
   touchId?: number;
   pressEffect?: number; // For visual feedback on press (0-1)
+  touchPosition?: Vector2; // Current touch position (for directional controls)
 }
 
 export class MobileControls {
@@ -20,6 +21,7 @@ export class MobileControls {
   private isMobile: boolean;
   private moveStickOrigin: Vector2;
   private moveDirection: Vector2 = Vector2.zero();
+  private shootDirection: Vector2 = Vector2.zero();
   private lastFrameTime: number = 0;
   private isIOSSafari: boolean;
   private debugMode: boolean = false; // Disabled for production
@@ -336,9 +338,19 @@ export class MobileControls {
       if (touchPos.distance(this.shootButton.position) <= this.shootButton.radius) {
         this.shootButton.isPressed = true;
         this.shootButton.touchId = touch.identifier;
+        this.shootButton.touchPosition = touchPos.clone();
+        
+        // Calculate shooting direction from touch position relative to button center
+        const shootDir = touchPos.subtract(this.shootButton.position);
+        if (shootDir.magnitude() > 2) { // Small dead zone in center
+          this.shootDirection = shootDir.normalize();
+        } else {
+          // If touching center, default to upward direction
+          this.shootDirection = new Vector2(0, -1);
+        }
         
         if (this.debugMode) {
-          console.log('Shoot button pressed');
+          console.log('Shoot button pressed at:', touchPos, 'direction:', this.shootDirection);
         }
       }
       
@@ -398,6 +410,37 @@ export class MobileControls {
         // Update movement direction
         this.moveDirection = direction.normalize().multiply(distance / this.moveStick.radius);
       }
+      
+      // Handle shoot button touch move for directional shooting
+      if (this.shootButton.touchId === touch.identifier && this.shootButton.isPressed) {
+        const rect = this.canvas.getBoundingClientRect();
+        let touchPos = new Vector2(
+          touch.clientX - rect.left,
+          touch.clientY - rect.top
+        );
+        
+        // Scale touch coordinates to match logical canvas coordinates
+        const scaleX = this.canvas.width / this.canvas.clientWidth;
+        const scaleY = this.canvas.height / this.canvas.clientHeight;
+        const devicePixelRatio = window.devicePixelRatio || 1;
+        
+        touchPos.x = (touchPos.x * scaleX) / devicePixelRatio;
+        touchPos.y = (touchPos.y * scaleY) / devicePixelRatio;
+        
+        // Update touch position and shooting direction
+        this.shootButton.touchPosition = touchPos.clone();
+        
+        // Calculate shooting direction from touch position relative to button center
+        const shootDir = touchPos.subtract(this.shootButton.position);
+        if (shootDir.magnitude() > 2) { // Small dead zone in center
+          this.shootDirection = shootDir.normalize();
+        } else {
+          // If touching center, keep previous direction or default upward
+          if (this.shootDirection.magnitude() < 0.1) {
+            this.shootDirection = new Vector2(0, -1);
+          }
+        }
+      }
     }
   }
 
@@ -417,6 +460,8 @@ export class MobileControls {
       if (this.shootButton.touchId === touch.identifier) {
         this.shootButton.isPressed = false;
         this.shootButton.touchId = undefined;
+        this.shootButton.touchPosition = undefined;
+        // Keep shootDirection until next press - allows for continuous shooting
       }
       
       if (this.fullscreenButton.touchId === touch.identifier) {
@@ -440,6 +485,10 @@ export class MobileControls {
 
   isShootPressed(): boolean {
     return this.shootButton.isPressed;
+  }
+  
+  getShootDirection(): Vector2 {
+    return this.shootDirection.clone();
   }
   
   isPausePressed(): boolean {
@@ -587,9 +636,9 @@ export class MobileControls {
     }
     
     // Render movement stick base
-    this.ctx.fillStyle = Color.cyan().withAlpha(0.8).toString(); // Very visible for debugging
-    this.ctx.strokeStyle = Color.white().withAlpha(1.0).toString(); // Very visible for debugging
-    this.ctx.lineWidth = 4; // Thicker for debugging
+    this.ctx.fillStyle = Color.cyan().withAlpha(0.6).toString();
+    this.ctx.strokeStyle = Color.white().withAlpha(0.8).toString();
+    this.ctx.lineWidth = 2;
     this.ctx.beginPath();
     this.ctx.arc(
       this.moveStickOrigin.x / devicePixelRatio, 
@@ -622,10 +671,10 @@ export class MobileControls {
     const shootEffect = this.shootButton.pressEffect || 0;
     const shootColor = shootEffect > 0 ? 
                      Color.red().withAlpha(0.6 + 0.4 * shootEffect) :
-                     Color.orange().withAlpha(0.8); // Very visible for debugging
+                     Color.orange().withAlpha(0.6);
     this.ctx.fillStyle = shootColor.toString();
-    this.ctx.strokeStyle = Color.orange().withAlpha(1.0).toString(); // Very visible
-    this.ctx.lineWidth = 4; // Thicker for debugging
+    this.ctx.strokeStyle = Color.orange().withAlpha(0.8).toString();
+    this.ctx.lineWidth = 2;
     this.ctx.beginPath();
     this.ctx.arc(
       this.shootButton.position.x / devicePixelRatio, 
@@ -648,6 +697,32 @@ export class MobileControls {
     this.ctx.moveTo(shootX, shootY - crosshairSize/devicePixelRatio);
     this.ctx.lineTo(shootX, shootY + crosshairSize/devicePixelRatio);
     this.ctx.stroke();
+    
+    // Show shooting direction indicator if button is pressed
+    if (this.shootButton.isPressed && this.shootDirection.magnitude() > 0.1) {
+      this.ctx.strokeStyle = Color.yellow().toString();
+      this.ctx.lineWidth = 4;
+      this.ctx.beginPath();
+      const arrowLength = 25;
+      const arrowEndX = shootX + (this.shootDirection.x * arrowLength);
+      const arrowEndY = shootY + (this.shootDirection.y * arrowLength);
+      this.ctx.moveTo(shootX, shootY);
+      this.ctx.lineTo(arrowEndX, arrowEndY);
+      
+      // Draw arrow head
+      const arrowHeadSize = 8;
+      const angle = Math.atan2(this.shootDirection.y, this.shootDirection.x);
+      this.ctx.lineTo(
+        arrowEndX - arrowHeadSize * Math.cos(angle - Math.PI / 6),
+        arrowEndY - arrowHeadSize * Math.sin(angle - Math.PI / 6)
+      );
+      this.ctx.moveTo(arrowEndX, arrowEndY);
+      this.ctx.lineTo(
+        arrowEndX - arrowHeadSize * Math.cos(angle + Math.PI / 6),
+        arrowEndY - arrowHeadSize * Math.sin(angle + Math.PI / 6)
+      );
+      this.ctx.stroke();
+    }
     
     // Render fullscreen button with animation effect
     const fullscreenEffect = this.fullscreenButton.pressEffect || 0;
