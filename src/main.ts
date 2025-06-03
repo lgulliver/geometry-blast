@@ -74,6 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('  IJKL or Spacebar - Shoot');
     console.log('  Touch/Mouse - Move and shoot');
     console.log('  Gamepad - Left stick move, right stick shoot');
-    console.log('  C - Toggle collision debug mode');
+    console.log('Debug Commands:');
+    console.log('  C - Toggle collision debug visualization');
+    console.log('  game.enableMobileDebug() - Enable mobile input logging');
+    console.log('  game.disableMobileDebug() - Disable mobile input logging');
+    console.log('  game.stressTestCollisions(30) - Spawn entities for performance testing');
   }, 100);
 });

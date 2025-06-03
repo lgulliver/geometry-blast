@@ -16,7 +16,7 @@ export class InputManager {
   private isTouching: boolean = false;
   private canvas: HTMLCanvasElement;
   private mobileControls: MobileControls;
-  private debugMode: boolean = true; // Temporary debug mode
+  private debugMode: boolean = false; // Disabled by default
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;

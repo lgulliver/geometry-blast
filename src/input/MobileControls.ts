@@ -22,7 +22,7 @@ export class MobileControls {
   private moveDirection: Vector2 = Vector2.zero();
   private lastFrameTime: number = 0;
   private isIOSSafari: boolean;
-  private debugMode: boolean = true; // Set to true for debug logging
+  private debugMode: boolean = false; // Disabled by default - can be enabled for testing
   private isPaused: boolean = false;
 
   constructor(canvas: HTMLCanvasElement) {

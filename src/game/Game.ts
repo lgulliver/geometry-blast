@@ -412,20 +412,25 @@ export class Game {
     // Collision detection
     this.handleCollisions();
 
-    // Performance reporting (every 60 frames)
+    // Performance reporting (every 180 frames, ~3 seconds, and only when there are many entities)
     this.frameCount++;
-    if (this.frameCount >= 60) {
+    if (this.frameCount >= 180) {
       const currentTime = performance.now();
-      if (this.lastPerformanceReport > 0) {
-        const avgCollisionTime = this.collisionTime / this.collisionCount;
-        const entityCount = this.enemies.length + this.playerProjectiles.length + this.enemyProjectiles.length + this.powerUps.length;
-        
-        console.log(`🎯 Collision Performance:`, {
-          'Avg Collision Time': `${avgCollisionTime.toFixed(3)}ms`,
-          'Total Entities': entityCount,
-          'Frame Rate': `${(60000 / (currentTime - this.lastPerformanceReport)).toFixed(1)} FPS`,
-          'Wave': this.wave
-        });
+      const entityCount = this.enemies.length + this.playerProjectiles.length + this.enemyProjectiles.length + this.powerUps.length;
+      
+      // Only log performance when there are significant entities or in debug mode
+      if (entityCount > 15 || this.collisionSystem['debugMode']) {
+        if (this.lastPerformanceReport > 0 && this.collisionCount > 0) {
+          const avgCollisionTime = this.collisionTime / this.collisionCount;
+          const frameRate = 180000 / (currentTime - this.lastPerformanceReport);
+          
+          console.log(`🎯 Performance [Wave ${this.wave}]:`, {
+            'Entities': entityCount,
+            'Avg Collision': `${avgCollisionTime.toFixed(3)}ms`,
+            'FPS': `${frameRate.toFixed(1)}`,
+            'Spatial Grid': `${this.collisionSystem['spatialGrid'].debugInfo.cols}x${this.collisionSystem['spatialGrid'].debugInfo.rows}`
+          });
+        }
       }
       
       this.lastPerformanceReport = currentTime;
@@ -681,21 +686,12 @@ export class Game {
     this.ctx.textAlign = 'center';
     this.ctx.fillText(`Wave ${this.wave}`, this.canvas.width / 2, 50);
     
-    // Show entity counts and performance info
-    const entityCount = this.enemies.length + this.playerProjectiles.length + this.enemyProjectiles.length + this.powerUps.length;
-    this.ctx.font = '14px Courier New';
-    this.ctx.textAlign = 'left';
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    this.ctx.fillText(`Entities: ${entityCount}`, 10, this.canvas.height - 80);
-    this.ctx.fillText(`Enemies: ${this.enemies.length}`, 10, this.canvas.height - 60);
-    this.ctx.fillText(`Projectiles: ${this.playerProjectiles.length + this.enemyProjectiles.length}`, 10, this.canvas.height - 40);
-    this.ctx.fillText(`PowerUps: ${this.powerUps.length}`, 10, this.canvas.height - 20);
-    
-    // Show debug info if collision debug is enabled
+    // Only show minimal debug info when collision debug is enabled
     if (this.collisionSystem['debugMode']) {
+      this.ctx.font = '14px Courier New';
+      this.ctx.textAlign = 'left';
       this.ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
-      this.ctx.fillText(`Collision Debug: ON (Press C to toggle)`, 10, 30);
-      this.ctx.fillText(`Spatial Grid: ${this.collisionSystem['spatialGrid'].debugInfo.cols}x${this.collisionSystem['spatialGrid'].debugInfo.rows}`, 10, 50);
+      this.ctx.fillText(`Debug Mode (Press C to toggle)`, 10, 30);
     }
   }
   
@@ -757,8 +753,51 @@ export class Game {
 
   // Debug method to toggle collision system visualization
   toggleCollisionDebug(): void {
-    this.collisionSystem.setDebugMode(!this.collisionSystem['debugMode']);
-    console.log('Collision debug mode:', this.collisionSystem['debugMode'] ? 'enabled' : 'disabled');
+    const wasEnabled = this.collisionSystem['debugMode'];
+    this.collisionSystem.setDebugMode(!wasEnabled);
+    
+    if (!wasEnabled) {
+      console.log('🎯 Collision Debug: ENABLED');
+      console.log('  Yellow grid shows spatial partitioning');
+      console.log('  Press C again to disable');
+    } else {
+      console.log('🎯 Collision Debug: DISABLED');
+    }
+  }
+
+  // Debug method to enable mobile controls debug mode
+  enableMobileDebug(): void {
+    this.inputManager.getMobileControls()['debugMode'] = true;
+    this.inputManager['debugMode'] = true;
+    console.log('📱 Mobile Debug: ENABLED');
+    console.log('  Touch events will be logged to console');
+    console.log('  Call game.disableMobileDebug() to disable');
+  }
+
+  // Debug method to disable mobile controls debug mode
+  disableMobileDebug(): void {
+    this.inputManager.getMobileControls()['debugMode'] = false;
+    this.inputManager['debugMode'] = false;
+    console.log('📱 Mobile Debug: DISABLED');
+  }
+
+  // Debug method to stress test collision system
+  stressTestCollisions(entityCount: number = 30): void {
+    console.log(`🎯 Stress Testing Collision System with ${entityCount} entities...`);
+    
+    // Spawn extra enemies for testing
+    for (let i = 0; i < entityCount; i++) {
+      const x = Math.random() * this.canvas.width;
+      const y = Math.random() * this.canvas.height;
+      const types = [EnemyType.WANDERER, EnemyType.CHASER, EnemyType.SHOOTER];
+      const type = types[Math.floor(Math.random() * types.length)];
+      this.enemies.push(new Enemy(x, y, type));
+    }
+    
+    // Enable collision debug automatically
+    this.collisionSystem.setDebugMode(true);
+    console.log('✅ Stress test entities spawned. Collision debug enabled.');
+    console.log('Watch for performance metrics in console every ~3 seconds.');
   }
 
   start(): void {
