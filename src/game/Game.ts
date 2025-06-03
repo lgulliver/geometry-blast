@@ -83,10 +83,6 @@ export class Game {
       }
     });
     
-    // Initialize game entities
-    console.log('Creating player at center:', { x: canvas.width / 2, y: canvas.height / 2 });
-    this.player = new Player(canvas.width / 2, canvas.height / 2);
-    
     // Get UI elements
     this.scoreElement = document.getElementById('score')!;
     this.livesElement = document.getElementById('lives')!;
@@ -98,6 +94,9 @@ export class Game {
     
     // Setup resize handler
     window.addEventListener('resize', () => this.handleResize());
+    
+    // Initialize game state and entities
+    this.initializeGame();
   }
 
   private setupCanvas(): void {
@@ -112,38 +111,37 @@ export class Game {
       let targetWidth, targetHeight;
       
       if (isMobile) {
-        // iOS Safari specific handling
-        const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        // Use full viewport for mobile devices
+        targetWidth = window.innerWidth;
+        targetHeight = window.innerHeight;
         
-        if (isIOSSafari) {
-          // Use screen dimensions for iOS to avoid viewport issues
-          // Prioritize portrait mode (height greater than width)
-          targetWidth = window.innerWidth;
-          targetHeight = window.innerHeight;
-          
-          console.log('iOS Safari canvas sizing (portrait mode):', {
-            screen: { width: screen.width, height: screen.height },
-            window: { width: window.innerWidth, height: window.innerHeight },
-            target: { width: targetWidth, height: targetHeight }
-          });
-        } else {
-          // Android and other mobile - use portrait mode
-          targetWidth = window.innerWidth;
-          targetHeight = window.innerHeight;
+        // For iOS Safari, use visualViewport if available to handle address bar
+        if (window.visualViewport) {
+          targetWidth = window.visualViewport.width;
+          targetHeight = window.visualViewport.height;
         }
         
         // Ensure minimum playable size
         if (targetWidth < 320) targetWidth = 320;
         if (targetHeight < 240) targetHeight = 240;
+        
+        console.log('Mobile canvas sizing:', {
+          window: { width: window.innerWidth, height: window.innerHeight },
+          visualViewport: window.visualViewport ? 
+            { width: window.visualViewport.width, height: window.visualViewport.height } : 'not available',
+          target: { width: targetWidth, height: targetHeight }
+        });
       } else {
         // Desktop: use reasonable game window size
         targetWidth = Math.min(window.innerWidth - 40, 1200);
         targetHeight = Math.min(window.innerHeight - 40, 800);
       }
       
+      // Set canvas CSS size first
       this.canvas.style.width = targetWidth + 'px';
       this.canvas.style.height = targetHeight + 'px';
       
+      // Set actual canvas resolution
       this.canvas.width = targetWidth * devicePixelRatio;
       this.canvas.height = targetHeight * devicePixelRatio;
       
@@ -152,13 +150,19 @@ export class Game {
       this.ctx.scale(devicePixelRatio, devicePixelRatio);
       
       console.log('Canvas updated:', {
-        style: { width: targetWidth, height: targetHeight },
-        actual: { width: this.canvas.width, height: this.canvas.height },
-        devicePixelRatio
+        cssSize: { width: targetWidth, height: targetHeight },
+        actualSize: { width: this.canvas.width, height: this.canvas.height },
+        devicePixelRatio,
+        isMobile
       });
     };
     
     updateCanvasSize();
+    
+    // Listen for visual viewport changes (iOS Safari address bar)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateCanvasSize);
+    }
   }
 
   private setupMobileOptimizations(): void {

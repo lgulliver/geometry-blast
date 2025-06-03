@@ -22,7 +22,7 @@ export class MobileControls {
   private moveDirection: Vector2 = Vector2.zero();
   private lastFrameTime: number = 0;
   private isIOSSafari: boolean;
-  private debugMode: boolean = false; // Set to true for debug logging
+  private debugMode: boolean = true; // Set to true for debug logging
   private isPaused: boolean = false;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -125,6 +125,9 @@ export class MobileControls {
     const isSmallScreen = window.innerWidth <= 1024 || window.innerHeight <= 768;
     const isMobile = isMobileUA || hasTouch || isIOSSafari || isIOSFirefox || isSmallScreen;
     
+    // FOR DEBUGGING: Force mobile controls to show
+    const forceShow = true; // Set to false once debugging is complete
+    
     if (this.debugMode) {
       console.log('Mobile detection:', {
         userAgent,
@@ -134,11 +137,12 @@ export class MobileControls {
         isFirefox,
         isIOSFirefox,
         isSmallScreen,
-        final: isMobile
+        final: isMobile,
+        forced: forceShow
       });
     }
     
-    return isMobile;
+    return isMobile || forceShow;
   }
 
   private setupEventListeners(): void {
@@ -149,10 +153,56 @@ export class MobileControls {
     // iOS Safari needs special handling for touch events
     const options = { passive: false };
     
+    // Touch events
     this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), options);
     this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this), options);
     this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this), options);
     this.canvas.addEventListener('touchcancel', this.handleTouchEnd.bind(this), options);
+    
+    // FOR DEBUGGING: Add mouse events to test controls on desktop
+    this.canvas.addEventListener('mousedown', (e) => {
+      const fakeTouch = {
+        identifier: 0,
+        clientX: e.clientX,
+        clientY: e.clientY
+      };
+      const fakeEvent = {
+        preventDefault: () => e.preventDefault(),
+        changedTouches: [fakeTouch],
+        touches: { length: 1 }
+      };
+      this.handleTouchStart(fakeEvent as any);
+    });
+    
+    this.canvas.addEventListener('mousemove', (e) => {
+      if (e.buttons === 1) { // Left mouse button held
+        const fakeTouch = {
+          identifier: 0,
+          clientX: e.clientX,
+          clientY: e.clientY
+        };
+        const fakeEvent = {
+          preventDefault: () => e.preventDefault(),
+          changedTouches: [fakeTouch],
+          touches: { length: 1 }
+        };
+        this.handleTouchMove(fakeEvent as any);
+      }
+    });
+    
+    this.canvas.addEventListener('mouseup', (e) => {
+      const fakeTouch = {
+        identifier: 0,
+        clientX: e.clientX,
+        clientY: e.clientY
+      };
+      const fakeEvent = {
+        preventDefault: () => e.preventDefault(),
+        changedTouches: [fakeTouch],
+        touches: { length: 0 }
+      };
+      this.handleTouchEnd(fakeEvent as any);
+    });
     
     // Special handling for iOS Safari
     if (this.isIOSSafari) {
@@ -211,6 +261,13 @@ export class MobileControls {
   private handleTouchStart(event: TouchEvent): void {
     event.preventDefault();
     
+    if (this.debugMode) {
+      console.log('Touch start event:', {
+        touches: event.touches.length,
+        changedTouches: event.changedTouches.length
+      });
+    }
+    
     for (let i = 0; i < event.changedTouches.length; i++) {
       const touch = event.changedTouches[i];
       const rect = this.canvas.getBoundingClientRect();
@@ -219,22 +276,48 @@ export class MobileControls {
         touch.clientY - rect.top
       );
       
-      // Scale for device pixel ratio
+      if (this.debugMode) {
+        console.log('Touch position (raw):', touchPos, 'Canvas rect:', rect);
+      }
+      
+      // Scale for device pixel ratio - SIMPLIFIED for debugging
       const devicePixelRatio = window.devicePixelRatio || 1;
-      touchPos.x *= (this.canvas.width / this.canvas.clientWidth) / devicePixelRatio;
-      touchPos.y *= (this.canvas.height / this.canvas.clientHeight) / devicePixelRatio;
+      
+      // Use simple 1:1 scaling for debugging
+      const canvasToClientRatio = this.canvas.width / this.canvas.clientWidth;
+      touchPos.x *= canvasToClientRatio;
+      touchPos.y *= canvasToClientRatio;
+      
+      if (this.debugMode) {
+        console.log('Touch position (scaled):', touchPos, 'Ratios:', {
+          DPR: devicePixelRatio,
+          canvasToClient: canvasToClientRatio,
+          canvas: { width: this.canvas.width, height: this.canvas.height },
+          client: { width: this.canvas.clientWidth, height: this.canvas.clientHeight },
+          moveStickOrigin: this.moveStickOrigin,
+          shootButtonPos: this.shootButton.position
+        });
+      }
       
       // Check movement stick
       if (touchPos.distance(this.moveStickOrigin) <= this.moveStick.radius * 1.5) {
         this.moveStick.isPressed = true;
         this.moveStick.touchId = touch.identifier;
         this.moveStick.position = touchPos.clone();
+        
+        if (this.debugMode) {
+          console.log('Move stick pressed at:', touchPos);
+        }
       }
       
       // Check shoot button
       if (touchPos.distance(this.shootButton.position) <= this.shootButton.radius) {
         this.shootButton.isPressed = true;
         this.shootButton.touchId = touch.identifier;
+        
+        if (this.debugMode) {
+          console.log('Shoot button pressed');
+        }
       }
       
       // Check fullscreen button
@@ -242,6 +325,10 @@ export class MobileControls {
         this.fullscreenButton.isPressed = true;
         this.fullscreenButton.touchId = touch.identifier;
         this.toggleFullscreen();
+        
+        if (this.debugMode) {
+          console.log('Fullscreen button pressed');
+        }
       }
       
       // Check pause button
@@ -249,6 +336,10 @@ export class MobileControls {
         this.pauseButton.isPressed = true;
         this.pauseButton.touchId = touch.identifier;
         this.togglePause();
+        
+        if (this.debugMode) {
+          console.log('Pause button pressed');
+        }
       }
     }
   }
@@ -266,10 +357,13 @@ export class MobileControls {
           touch.clientY - rect.top
         );
         
-        // Scale for device pixel ratio
+        // Scale for device pixel ratio - SIMPLIFIED for debugging
         const devicePixelRatio = window.devicePixelRatio || 1;
-        touchPos.x *= (this.canvas.width / this.canvas.clientWidth) / devicePixelRatio;
-        touchPos.y *= (this.canvas.height / this.canvas.clientHeight) / devicePixelRatio;
+        
+        // Use simple 1:1 scaling for debugging  
+        const canvasToClientRatio = this.canvas.width / this.canvas.clientWidth;
+        touchPos.x *= canvasToClientRatio;
+        touchPos.y *= canvasToClientRatio;
         
         // Constrain to stick radius
         const direction = touchPos.subtract(this.moveStickOrigin);
@@ -316,6 +410,9 @@ export class MobileControls {
   }
 
   getMoveDirection(): Vector2 {
+    if (this.debugMode && this.moveDirection.magnitude() > 0.1) {
+      console.log('getMoveDirection called, returning:', this.moveDirection);
+    }
     return this.moveDirection.clone();
   }
 
@@ -457,9 +554,9 @@ export class MobileControls {
     this.ctx.scale(devicePixelRatio, devicePixelRatio);
     
     // Render movement stick base
-    this.ctx.fillStyle = Color.white().withAlpha(0.2).toString();
-    this.ctx.strokeStyle = Color.white().withAlpha(0.4).toString();
-    this.ctx.lineWidth = 2;
+    this.ctx.fillStyle = Color.white().withAlpha(0.5).toString(); // More visible for debugging
+    this.ctx.strokeStyle = Color.white().withAlpha(0.8).toString(); // More visible for debugging
+    this.ctx.lineWidth = 3; // Thicker for debugging
     this.ctx.beginPath();
     this.ctx.arc(
       this.moveStickOrigin.x / devicePixelRatio, 
@@ -491,11 +588,11 @@ export class MobileControls {
     // Render shoot button with animation effect
     const shootEffect = this.shootButton.pressEffect || 0;
     const shootColor = shootEffect > 0 ? 
-                     Color.red().withAlpha(0.3 + 0.7 * shootEffect) :
-                     Color.orange().withAlpha(0.3);
+                     Color.red().withAlpha(0.6 + 0.4 * shootEffect) :
+                     Color.orange().withAlpha(0.6); // More visible for debugging
     this.ctx.fillStyle = shootColor.toString();
-    this.ctx.strokeStyle = Color.orange().withAlpha(0.6 + 0.4 * shootEffect).toString();
-    this.ctx.lineWidth = 2;
+    this.ctx.strokeStyle = Color.orange().withAlpha(0.8 + 0.2 * shootEffect).toString(); // More visible
+    this.ctx.lineWidth = 3; // Thicker for debugging
     this.ctx.beginPath();
     this.ctx.arc(
       this.shootButton.position.x / devicePixelRatio, 
