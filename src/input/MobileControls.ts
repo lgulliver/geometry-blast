@@ -37,10 +37,10 @@ export class MobileControls {
     this.isMobile = this.detectMobile();
     
     // Remove forced mobile controls for production
-    // if (this.isIOSSafari || 'ontouchstart' in window || navigator.maxTouchPoints > 0) {
-    //   if (this.debugMode) console.log('Touch device detected, forcing mobile controls');
-    //   this.isMobile = true;
-    // }
+    if (this.isIOSSafari || 'ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      if (this.debugMode) console.log('Touch device detected, forcing mobile controls');
+      this.isMobile = true;
+    }
     
     console.log('MobileControls initialized:', {
       isMobile: this.isMobile,
