@@ -5,6 +5,7 @@ import { PowerUp, PowerUpType } from '../entities/PowerUp'
 import { InputManager } from '../input/InputManager'
 import { ParticleSystem } from '../graphics/ParticleSystem'
 import { AudioManager } from '../audio/AudioManager'
+import { CollisionSystem } from './CollisionSystem'
 import { Vector2 } from '../utils/Vector2'
 import { Color } from '../utils/Color'
 import { randomFloat, randomInt, randomChoice } from '../utils/Math'
@@ -21,6 +22,7 @@ export class Game {
   private inputManager: InputManager;
   private particleSystem: ParticleSystem;
   private audioManager: AudioManager;
+  private collisionSystem: CollisionSystem;
   
   private player: Player;
   private enemies: Enemy[] = [];
@@ -44,6 +46,12 @@ export class Game {
   private finalScoreElement: HTMLElement;
   private restartButton: HTMLElement;
 
+  // Performance tracking
+  private collisionTime: number = 0;
+  private collisionCount: number = 0;
+  private frameCount: number = 0;
+  private lastPerformanceReport: number = 0;
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
@@ -64,6 +72,11 @@ export class Game {
     this.inputManager = new InputManager(canvas);
     this.particleSystem = new ParticleSystem();
     this.audioManager = new AudioManager();
+    this.collisionSystem = new CollisionSystem(
+      this.canvas.width / (window.devicePixelRatio || 1), 
+      this.canvas.height / (window.devicePixelRatio || 1),
+      false // Set to true to enable debug rendering
+    );
     
     // Listen for pause events from mobile controls
     document.addEventListener('gamePauseToggle', (e: CustomEvent) => {
@@ -201,11 +214,16 @@ export class Game {
     this.setupCanvas();
     this.inputManager.updateLayout();
     
+    // Update collision system dimensions
+    const canvasWidth = this.canvas.width / (window.devicePixelRatio || 1);
+    const canvasHeight = this.canvas.height / (window.devicePixelRatio || 1);
+    this.collisionSystem.resize(canvasWidth, canvasHeight);
+    
     // Update player position if out of bounds
     if (this.player) {
       const pos = this.player.position;
-      const newX = Math.max(20, Math.min(this.canvas.width - 20, pos.x));
-      const newY = Math.max(20, Math.min(this.canvas.height - 20, pos.y));
+      const newX = Math.max(20, Math.min(canvasWidth - 20, pos.x));
+      const newY = Math.max(20, Math.min(canvasHeight - 20, pos.y));
       this.player.position = new Vector2(newX, newY);
     }
   }
@@ -394,6 +412,28 @@ export class Game {
     // Collision detection
     this.handleCollisions();
 
+    // Performance reporting (every 60 frames)
+    this.frameCount++;
+    if (this.frameCount >= 60) {
+      const currentTime = performance.now();
+      if (this.lastPerformanceReport > 0) {
+        const avgCollisionTime = this.collisionTime / this.collisionCount;
+        const entityCount = this.enemies.length + this.playerProjectiles.length + this.enemyProjectiles.length + this.powerUps.length;
+        
+        console.log(`🎯 Collision Performance:`, {
+          'Avg Collision Time': `${avgCollisionTime.toFixed(3)}ms`,
+          'Total Entities': entityCount,
+          'Frame Rate': `${(60000 / (currentTime - this.lastPerformanceReport)).toFixed(1)} FPS`,
+          'Wave': this.wave
+        });
+      }
+      
+      this.lastPerformanceReport = currentTime;
+      this.collisionTime = 0;
+      this.collisionCount = 0;
+      this.frameCount = 0;
+    }
+
     // Remove inactive entities
     this.playerProjectiles = this.playerProjectiles.filter(p => p.active);
     this.enemyProjectiles = this.enemyProjectiles.filter(p => p.active);
@@ -420,63 +460,73 @@ export class Game {
   }
 
   private handleCollisions(): void {
-    // Player projectiles vs enemies
-    for (let i = this.playerProjectiles.length - 1; i >= 0; i--) {
-      const projectile = this.playerProjectiles[i];
-      
-      for (let j = this.enemies.length - 1; j >= 0; j--) {
-        const enemy = this.enemies[j];
+    // Performance tracking
+    const startTime = performance.now();
+    
+    // Enhanced collision detection using spatial partitioning
+    
+    // Player projectiles vs enemies - O(n) instead of O(n²)
+    this.collisionSystem.detectCollisions(
+      this.playerProjectiles.filter(p => p.active),
+      this.enemies.filter(e => e.active),
+      (result) => {
+        const projectile = result.entityA as Projectile;
+        const enemy = result.entityB as Enemy;
         
-        if (projectile.isColliding(enemy)) {
-          projectile.destroy();
+        projectile.destroy();
+        
+        if (enemy.takeDamage(1)) {
+          this.score += this.getEnemyScore(enemy.type);
+          this.audioManager.playEnemyHit();
+          this.particleSystem.createEnemyDeathExplosion(enemy.position, enemy.color);
           
-          if (enemy.takeDamage(1)) {
-            this.score += this.getEnemyScore(enemy.type);
-            this.audioManager.playEnemyHit();
-            this.particleSystem.createEnemyDeathExplosion(enemy.position, enemy.color);
-            
-            // Chance to spawn power-up on enemy death
-            if (Math.random() < 0.15) { // 15% chance
-              this.spawnPowerUp(enemy.position.x, enemy.position.y);
-            }
-            
-            enemy.destroy();
+          // Chance to spawn power-up on enemy death
+          if (Math.random() < 0.15) { // 15% chance
+            this.spawnPowerUp(enemy.position.x, enemy.position.y);
           }
-          break;
+          
+          enemy.destroy();
         }
       }
-    }
+    );
 
-    // Enemy projectiles vs player
+    // Enemy projectiles vs player (only if not invulnerable)
     if (this.invulnerabilityTimer <= 0) {
-      for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
-        const projectile = this.enemyProjectiles[i];
-        
-        if (projectile.isColliding(this.player)) {
+      this.collisionSystem.detectCollisionsWithTarget(
+        this.enemyProjectiles.filter(p => p.active),
+        this.player,
+        (result) => {
+          const projectile = result.entityA as Projectile;
           projectile.destroy();
           this.playerHit();
-          break;
         }
-      }
+      );
 
       // Enemies vs player
-      for (const enemy of this.enemies) {
-        if (enemy.isColliding(this.player)) {
+      this.collisionSystem.detectCollisionsWithTarget(
+        this.enemies.filter(e => e.active),
+        this.player,
+        (result) => {
           this.playerHit();
-          break;
         }
-      }
+      );
     }
 
     // Player vs power-ups
-    for (let i = this.powerUps.length - 1; i >= 0; i--) {
-      const powerUp = this.powerUps[i];
-      
-      if (powerUp.isColliding(this.player)) {
+    this.collisionSystem.detectCollisionsWithTarget(
+      this.powerUps.filter(p => p.active),
+      this.player,
+      (result) => {
+        const powerUp = result.entityA as PowerUp;
         this.collectPowerUp(powerUp);
         powerUp.destroy();
       }
-    }
+    );
+
+    // Performance tracking
+    const endTime = performance.now();
+    this.collisionTime += (endTime - startTime);
+    this.collisionCount++;
   }
 
   private getEnemyScore(type: EnemyType): number {
@@ -584,6 +634,9 @@ export class Game {
     // Render particles
     this.particleSystem.render(this.ctx);
 
+    // Render collision system debug (if enabled)
+    this.collisionSystem.renderDebug(this.ctx);
+
     // Render wave indicator
     this.renderWaveIndicator();
     
@@ -627,6 +680,23 @@ export class Game {
     this.ctx.font = '24px Courier New';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(`Wave ${this.wave}`, this.canvas.width / 2, 50);
+    
+    // Show entity counts and performance info
+    const entityCount = this.enemies.length + this.playerProjectiles.length + this.enemyProjectiles.length + this.powerUps.length;
+    this.ctx.font = '14px Courier New';
+    this.ctx.textAlign = 'left';
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    this.ctx.fillText(`Entities: ${entityCount}`, 10, this.canvas.height - 80);
+    this.ctx.fillText(`Enemies: ${this.enemies.length}`, 10, this.canvas.height - 60);
+    this.ctx.fillText(`Projectiles: ${this.playerProjectiles.length + this.enemyProjectiles.length}`, 10, this.canvas.height - 40);
+    this.ctx.fillText(`PowerUps: ${this.powerUps.length}`, 10, this.canvas.height - 20);
+    
+    // Show debug info if collision debug is enabled
+    if (this.collisionSystem['debugMode']) {
+      this.ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+      this.ctx.fillText(`Collision Debug: ON (Press C to toggle)`, 10, 30);
+      this.ctx.fillText(`Spatial Grid: ${this.collisionSystem['spatialGrid'].debugInfo.cols}x${this.collisionSystem['spatialGrid'].debugInfo.rows}`, 10, 50);
+    }
   }
   
   private renderPauseOverlay(): void {
@@ -683,6 +753,12 @@ export class Game {
     // Create massive explosion effect
     this.particleSystem.createExplosion(this.player.position, Color.red(), 50);
     this.audioManager.playExplosion();
+  }
+
+  // Debug method to toggle collision system visualization
+  toggleCollisionDebug(): void {
+    this.collisionSystem.setDebugMode(!this.collisionSystem['debugMode']);
+    console.log('Collision debug mode:', this.collisionSystem['debugMode'] ? 'enabled' : 'disabled');
   }
 
   start(): void {

@@ -58,11 +58,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const game = new Game(canvas);
     game.start();
     
+    // Add debug shortcut - press 'C' to toggle collision debug
+    document.addEventListener('keydown', (event) => {
+      if (event.key.toLowerCase() === 'c') {
+        game.toggleCollisionDebug();
+      }
+    });
+    
+    // Make game accessible for debugging
+    (window as any).game = game;
+    
     console.log('🎮 Geometry Blast initialized!');
     console.log('Controls:');
     console.log('  WASD or Arrow Keys - Move');
     console.log('  IJKL or Spacebar - Shoot');
     console.log('  Touch/Mouse - Move and shoot');
     console.log('  Gamepad - Left stick move, right stick shoot');
+    console.log('  C - Toggle collision debug mode');
   }, 100);
 });
