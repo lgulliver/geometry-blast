@@ -131,31 +131,18 @@ export class InputManager {
         isMoving = true;
       }
 
-      // --- FIX: Use vector from player to shoot button for shooting direction ---
+      // --- FIX: Use shooting direction from mobile controls ---
       if (shootPressed) {
-        // Get the shoot button position and player position in logical canvas coordinates
-        const shootPos = this.mobileControls['shootButton'].position;
-        // Assume player position is at center of canvas (for mobile controls)
-        const playerPos = new Vector2(this.canvas.width / 2, this.canvas.height / 2);
-        const devicePixelRatio = window.devicePixelRatio || 1;
-        // Convert to logical coordinates
-        const shootLogical = new Vector2(
-          shootPos.x / devicePixelRatio,
-          shootPos.y / devicePixelRatio
-        );
-        const playerLogical = new Vector2(
-          playerPos.x / devicePixelRatio,
-          playerPos.y / devicePixelRatio
-        );
-        const shootDir = shootLogical.subtract(playerLogical);
-        if (shootDir.magnitude() > 0.1) {
-          const norm = shootDir.normalize();
-          shooting.x = norm.x;
-          shooting.y = norm.y;
+        const mobileShootDirection = this.mobileControls.getShootDirection();
+        if (mobileShootDirection.magnitude() > 0.1) {
+          shooting.x = mobileShootDirection.x;
+          shooting.y = mobileShootDirection.y;
         } else if (isMoving) {
+          // Fallback to movement direction if no specific shoot direction
           shooting.x = movement.x;
           shooting.y = movement.y;
         } else {
+          // Default to shooting up
           shooting.y = -1;
         }
         isShooting = true;

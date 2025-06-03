@@ -44,4 +44,4 @@ Thank you for your interest in contributing! Geometry Blast is an open-source, T
 Be respectful and constructive. Harassment or abuse will not be tolerated.
 
 ## License
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under the GNU GPLv3 License.
