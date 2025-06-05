@@ -12,7 +12,7 @@ A modern, fast-paced HTML5 game inspired by Geometry Wars. Blast enemies, dodge 
 - **Optimized for 60fps** on desktop and mobile
 
 ## Play Now
-- [Latest Release on GitHub Pages](https://your-username.github.io/geometry-blast/)
+- [Latest Release on GitHub Pages](https://lgulliver.github.io/geometry-blast/)
 
 ## Getting Started
 
