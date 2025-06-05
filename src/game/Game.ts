@@ -740,7 +740,7 @@ export class Game {
     }
 
     // Render mobile controls - always force render when debugging
-    this.inputManager.getMobileControls().forceRender();
+    this.inputManager.getMobileControls()
 
     // Restore canvas transform after screen shake
     this.ctx.restore();
